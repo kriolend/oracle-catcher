@@ -1,0 +1,77 @@
+---
+# Зачем: K3s устанавливается в два этапа — сначала мастер (он генерирует токен),
+# потом воркеры (они используют этот токен для вступления в кластер).
+# Поэтому playbook разбит на два отдельных play с разными hosts.
+
+- name: Установка K3s на Master-ноду
+  hosts: master
+  become: true
+  tasks:
+    - name: Скачать и установить K3s в режиме server (Diet Mode)
+      shell: |
+        curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server \
+          --disable traefik \
+          --disable metrics-server \
+          --disable local-storage \
+          --write-kubeconfig-mode 644" sh -
+      # Зачем --disable: Traefik, metrics-server и local-storage занимают ~200MB RAM.
+      # На e2-micro (1GB) это критично. Мы добавим их позже через ArgoCD при необходимости.
+      args:
+        creates: /usr/local/bin/k3s
+      # Зачем creates: если k3s уже установлен — пропустить задачу (идемпотентность).
+
+    - name: Дождаться запуска K3s (до 60 секунд)
+      wait_for:
+        path: /var/lib/rancher/k3s/server/node-token
+        timeout: 60
+      # Зачем: токен генерируется не мгновенно. Если воркеры попытаются
+      # подключиться до его появления — они получат ошибку авторизации.
+
+    - name: Прочитать токен для подключения воркеров
+      slurp:
+        src: /var/lib/rancher/k3s/server/node-token
+      register: k3s_token
+      # Зачем slurp: читает файл с удаленного сервера и передает его содержимое
+      # как переменную в Ansible — без необходимости копировать файл локально.
+
+    - name: Сохранить токен как факт Ansible
+      set_fact:
+        k3s_node_token: "{{ k3s_token.content | b64decode | trim }}"
+      # Зачем set_fact: делает токен доступным в следующем play для воркеров.
+      # b64decode нужен, потому что slurp возвращает содержимое в base64.
+
+    - name: Сохранить IP мастера как факт Ansible
+      set_fact:
+        master_ip: "{{ ansible_host }}"
+
+- name: Установка K3s на Worker-ноды
+  hosts: workers
+  become: true
+  vars:
+    # Зачем hostvars: передает переменные из play мастера в play воркеров.
+    # k3s-master-viacheslav — имя хоста из inventory/hosts.yml.
+    k3s_master_url: "https://{{ hostvars['k3s-master-viacheslav']['master_ip'] }}:6443"
+    k3s_token: "{{ hostvars['k3s-master-viacheslav']['k3s_node_token'] }}"
+  tasks:
+    - name: Скачать и установить K3s в режиме agent (воркер)
+      shell: |
+        curl -sfL https://get.k3s.io | K3S_URL="{{ k3s_master_url }}" \
+          K3S_TOKEN="{{ k3s_token }}" sh -
+      # Зачем K3S_URL и K3S_TOKEN: это стандартный способ подключения агента.
+      # K3S_URL указывает, к какому серверу подключаться (порт 6443 — API K3s).
+      # K3S_TOKEN — пароль для авторизации воркера в кластере.
+      args:
+        creates: /usr/local/bin/k3s
+
+- name: Проверка кластера
+  hosts: master
+  become: true
+  tasks:
+    - name: Показать список всех нод кластера
+      command: k3s kubectl get nodes -o wide
+      register: nodes_output
+      # Зачем: верифицируем что все 3 ноды видны мастером и имеют статус Ready.
+
+    - name: Вывести результат
+      debug:
+        msg: "{{ nodes_output.stdout_lines }}"
