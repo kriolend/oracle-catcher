@@ -1,0 +1,7 @@
+---
+- name: Restart Oracle Catcher
+  systemd:
+    name: oracle_catcher.service
+    state: restarted
+    daemon_reload: yes
+#Handler — это задача, которая выполняется только если что-то изменилось (скрипт обновился или сервис изменился). Это предотвращает ненужные рестарты при повторном запуске плейбука.

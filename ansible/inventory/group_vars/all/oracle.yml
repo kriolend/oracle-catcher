@@ -1,0 +1,24 @@
+---
+# === Публичные настройки Oracle (в git) ===
+oracle_region: "eu-frankfurt-1"
+
+oracle_availability_domains:
+  - "utzh:EU-FRANKFURT-1-AD-1"
+  - "utzh:EU-FRANKFURT-1-AD-2"
+  - "utzh:EU-FRANKFURT-1-AD-3"
+
+oracle_image_id: "ocid1.image.oc1.eu-frankfurt-1.aaaaaaaapli4odzd45utz5wtjkqiu5xzzu5kkcwlgvljxuf6qbgytl26hxza"
+oracle_shape: "VM.Standard.A1.Flex"
+oracle_ocpus: 4
+oracle_memory_gb: 24
+oracle_instance_display_name: "Oracle-ARM-Master"
+
+oracle_catcher_min_wait: 30
+oracle_catcher_max_wait: 60
+
+# === Ссылки на секреты из Vault (сами значения — в vault.yml) ===
+oracle_user_ocid:     "{{ vault_oracle_user_ocid }}"
+oracle_tenancy_ocid:  "{{ vault_oracle_tenancy_ocid }}"
+oracle_fingerprint:   "{{ vault_oracle_fingerprint }}"
+oracle_subnet_ocid:   "{{ vault_oracle_subnet_ocid }}"
+oracle_ssh_public_key: "{{ vault_oracle_ssh_public_key }}"
