@@ -1,9 +1,8 @@
 ---
-- name: Деплой Oracle Catcher на Master-ноду
+- name: Deploy Oracle Catcher on Master node
   hosts: master
   become: true
   roles:
     - oracle_catcher
-  # Зачем только master: Oracle Catcher — единственный процесс который
-  # "охотится" за ARM инстансом. Запускать на всех нодах = дублирование
-  # и риск превысить лимиты OCI API (429 rate limit).
+  # Why master only: Oracle Catcher is one process. It hunts for the ARM instance.
+  # We do not run it on workers. This prevents API block (429 rate limit).

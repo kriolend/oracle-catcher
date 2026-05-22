@@ -1,45 +1,44 @@
 ---
-- name: Установить Python и pip
+- name: Install Python and pip
   apt:
     name:
       - python3
       - python3-pip
       - python3-venv
     state: present
-  # Зачем: OCI SDK — это Python-библиотека. Без pip и venv её не установить.
+  # Why: OCI SDK is a Python library. We need pip and venv to install it.
 
-- name: Создать директорию для Oracle Catcher
+- name: Create directory for Oracle Catcher
   file:
     path: /opt/oracle_catcher
     state: directory
     mode: '0755'
-  # Зачем /opt: стандартная директория для стороннего ПО в Linux.
+  # Why /opt: standard directory for external programs in Linux.
 
-- name: Создать Python Virtual Environment
+- name: Create Python Virtual Environment
   command: python3 -m venv /opt/oracle_catcher/venv
   args:
     creates: /opt/oracle_catcher/venv/bin/python
-  # Зачем venv: изолирует зависимости OCI SDK от системного Python.
-  # creates: делает задачу идемпотентной — не пересоздаёт venv при повторном запуске.
+  # Why venv: isolates Python packages from the system Python.
+  # Why 'creates': does not run again if the folder already exists.
 
-- name: Установить библиотеку oci в venv
+- name: Install OCI library in venv
   pip:
     name: oci
     virtualenv: /opt/oracle_catcher/venv
-  # Зачем: oci — официальный SDK Oracle для управления облаком через API.
+  # Why: 'oci' is the official library to control Oracle Cloud via API.
 
-- name: Скопировать API ключ Oracle на сервер
+- name: Copy Oracle API key to server
   copy:
     src: oracle_api_key.pem
     dest: /opt/oracle_catcher/oracle_api_key.pem
     mode: '0600'
     owner: ubuntu
     group: ubuntu
-  # Зачем mode 0600: приватный ключ должен быть доступен ТОЛЬКО владельцу.
-  # Иначе OCI SDK откажется его использовать из соображений безопасности.
-  # Зачем src без пути: внутри роли Ansible автоматически ищет файлы в roles/oracle_catcher/files/
+  # Why mode 0600: private key must be secret. Only the owner can read it.
+  # Why src: Ansible automatically looks in roles/oracle_catcher/files/ folder.
 
-- name: Развернуть скрипт Oracle Catcher из шаблона
+- name: Deploy Oracle Catcher script from template
   template:
     src: oracle_turbo_catcher.py.j2
     dest: /opt/oracle_catcher/oracle_turbo_catcher.py
@@ -47,19 +46,18 @@
     owner: ubuntu
     group: ubuntu
   notify: Restart Oracle Catcher
-  # Зачем template: подставляет секреты из Vault в скрипт при деплое.
-  # notify: автоматически перезапустит сервис, если скрипт изменился.
+  # Why template: puts secrets from Vault into the script.
+  # notify: restarts the service if the script changes.
 
-- name: Установить systemd сервис Oracle Catcher
+- name: Install systemd service for Oracle Catcher
   template:
     src: oracle_catcher.service.j2
     dest: /etc/systemd/system/oracle_catcher.service
     mode: '0644'
   notify: Restart Oracle Catcher
-  # Зачем systemd: обеспечивает автозапуск после ребута сервера и
-  # автоматический перезапуск при падении скрипта (Restart=on-failure).
+  # Why systemd: starts the service on system boot and restarts it on crash.
 
-- name: Включить и запустить сервис Oracle Catcher
+- name: Enable and start Oracle Catcher service
   systemd:
     name: oracle_catcher.service
     state: started

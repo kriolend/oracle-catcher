@@ -1,0 +1,133 @@
+# ============================================
+# ШПАРГАЛКА ПРОЕКТА: devops-enterprise-lab
+# ============================================
+
+# ── Структура проекта ──
+devops-enterprise-lab/
+├── .pre-commit-config.yaml    # Проверки перед коммитом
+├── .gitignore
+├── Taskfile.yml               # Алиасы команд
+├── README.md
+├── terraform/                 # IaC (Управление облаком)
+│   ├── vyacheslav/            # Нода 1 (Мастер)  — packer-images-490319
+│   ├── kriolend/              # Нода 2 (Воркер)  — my-devops-project-20260317
+│   └── u8197250572/           # Нода 3 (Воркер)  — hip-return-470018-n9
+├── ansible/                   # Конфигурация серверов
+│   ├── ansible.cfg
+│   ├── inventory/hosts.yml
+│   ├── playbooks/
+│   └── roles/oracle_catcher/
+└── k8s/                       # GitOps (Манифесты кластера)
+    ├── argocd/
+    └── apps/
+
+# ── Каждая папка terraform/<имя>/ содержит ──
+# providers.tf      — Настройка GCP
+# variables.tf      — Переменные (Project ID, Region)
+# backend.tf        — Стейт в облаке (GCS bucket)
+# main.tf           — Сеть, фаерволы, виртуалки e2-micro
+# outputs.tf        — IP адреса (для Ansible)
+# terraform.tfvars  — Значения переменных (в .gitignore!)
+
+# ── SSH: добавить чужой ключ на сервер ──
+# В main.tf через \n (обратный слеш):
+#   metadata = {
+#     ssh-keys = "ubuntu:${file("~/.ssh/id_rsa.pub")}\nubuntu:ssh-rsa AAAA... друг@почта"
+#   }
+
+# ============================================
+# ПЕРВИЧНАЯ НАСТРОЙКА (выполнено)
+# ============================================
+mkdir ~/Projects/devops-enterprise-lab
+cd ~/Projects/devops-enterprise-lab
+git init
+# Создали: .gitignore, Taskfile.yml, .pre-commit-config.yaml
+
+# ============================================
+# TERRAFORM: создание ноды (универсальный шаблон)
+# ============================================
+
+# --- Шаг 1: Первая нода (vyacheslav) ---
+cd ~/Projects/devops-enterprise-lab/terraform
+gcloud auth application-default login          # Выбрать: vyacheslav.rumyancev@gmail.com
+gcloud storage buckets create gs://devops-lab-tfstate-vr-2026 --location=us-central1
+terraform init
+# Создать terraform.tfvars: gcp_project_id = "packer-images-490319"
+terraform apply
+
+# --- Шаг 2: Клонировать ноду на другой аккаунт ---
+# (Пример для kriolend, для u8197250572 — аналогично)
+cp -r vyacheslav kriolend
+cd kriolend
+rm -rf .terraform .terraform.lock.hcl
+
+# Редактируем 3 файла:
+#   terraform.tfvars → gcp_project_id = "my-devops-project-20260317"
+#   backend.tf       → bucket = "devops-lab-tfstate-kriolend-v2"
+#   main.tf          → name = "k3s-kriolend"
+
+# Переключаем аккаунт:
+gcloud config set project my-devops-project-20260317
+gcloud auth login                              # Выбрать: kriolend@gmail.com
+gcloud auth application-default login          # Выбрать: kriolend@gmail.com
+gcloud storage buckets create gs://devops-lab-tfstate-kriolend-v2 --location=us-central1
+terraform init -reconfigure
+terraform apply
+
+# ============================================
+# ПЕРЕКЛЮЧЕНИЕ МЕЖДУ АККАУНТАМИ
+# ============================================
+# Чтобы работать с конкретной нодой — переключи аккаунт:
+gcloud auth login                              # Выбрать нужную почту
+gcloud auth application-default login          # Выбрать ту же почту
+cd ~/Projects/devops-enterprise-lab/terraform/<имя_папки>/
+
+Ansible
+создаем структуру папок
+mkdir -p ~/Projects/devops-enterprise-lab/ansible/inventory/group_vars/all
+mkdir -p ~/Projects/devops-enterprise-lab/ansible/playbooks
+
+# ============================================
+# АКТУАЛЬНЫЕ СЕРВЕРЫ И АВТОРИЗАЦИЯ
+# ============================================
+
+# --- Текущие IP-адреса серверов ---
+# Master:    k3s-master-viacheslav   — 136.112.15.165 (vyacheslav.rumyancev@gmail.com)
+# Worker 1:  k3s-worker-kriolend     — 35.223.14.161  (kriolend@gmail.com)
+# Worker 2:  k3s-worker-U8197250572  — 104.154.162.81 (u8197250572@gmail.com)
+
+# --- Решение проблем доступа к GCS стейту ---
+# Если Terraform выдает 403 Access Denied, обновите Application Default Credentials (ADC):
+gcloud auth application-default login
+
+# --- Проверка запущенных инстансов в GCP ---
+gcloud compute instances list --format="table(name, status, networkInterfaces[0].accessConfigs[0].natIP)"
+
+# --- Работа с инвентарем Ansible ---
+# Внимание: Файл инвентаря должен лежать по пути ansible/inventory/hosts.yml
+# Зачем: ansible.cfg настроен на этот путь, чтобы не указывать инвентарь вручную в каждой команде.
+# mv ansible/inventory/group_vars/all/hosts.yml ansible/inventory/hosts.yml
+
+# Проверка пинга всех серверов через Ansible:
+# Зачем: Проверить SSH-доступ ко всем нодам перед запуском плейбуков.
+# cd ~/Projects/devops-enterprise-lab/ansible
+# ansible all -m ping
+
+# --- Запуск плейбуков настройки системы ---
+# Шаг 1: Первичная оптимизация (SWAP, sysctl, отключение snapd)
+# Зачем: Предотвращает OOM-killer на micro-нодах и повышает лимиты для Kubernetes.
+# ansible-playbook playbooks/01_system_setup.yml
+
+# Шаг 2: Установка K3s кластера (1 мастер + 2 воркера)
+# Зачем: Разворачивает легковесный Kubernetes кластер в "diet" режиме (без лишней памяти).
+# ansible-playbook playbooks/02_k3s_deploy.yml
+
+# Шаг 3: Деплой Oracle Catcher
+# Зачем: Запуск фонового скрипта для автоматического перехвата бесплатных ARM нод в Oracle Cloud.
+# ansible-playbook playbooks/03_oracle_catcher.yml --ask-vault-pass
+
+# --- Проверка статуса и логов Oracle Catcher ---
+# Зачем: Убедиться, что процесс запущен и делает запросы к OCI API без ошибок авторизации.
+# На мастере (выполнить через SSH или напрямую):
+# sudo systemctl status oracle_catcher.service
+# sudo journalctl -u oracle_catcher.service -f -n 50

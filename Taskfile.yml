@@ -1,0 +1,42 @@
+version: '3'
+
+tasks:
+  default:
+    cmds:
+      - task -l
+    silent: true
+
+  install-tools:
+    desc: "Установка необходимых утилит локально (опционально)"
+    cmds:
+      - echo "Installing dependencies..."
+
+  terraform-init:
+    desc: "Инициализация Terraform"
+    dir: terraform
+    cmds:
+      - terraform init
+
+  terraform-plan:
+    desc: "Планирование инфраструктуры"
+    dir: terraform
+    cmds:
+      - terraform plan
+
+  terraform-apply:
+    desc: "Развертывание инфраструктуры в GCP"
+    dir: terraform
+    cmds:
+      - terraform apply
+
+  ansible-ping:
+    desc: "Проверка доступности серверов через Ansible"
+    dir: ansible
+    cmds:
+      - ansible all -m ping -i inventory.yml
+
+  deploy:
+    desc: "Полный цикл деплоя (Terraform + Ansible)"
+    cmds:
+      - task: terraform-apply
+      - task: ansible-ping

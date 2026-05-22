@@ -1,5 +1,5 @@
 ---
-# === Публичные настройки Oracle (в git) ===
+# === Public Oracle settings (in git) ===
 oracle_region: "eu-frankfurt-1"
 
 oracle_availability_domains:
@@ -16,7 +16,7 @@ oracle_instance_display_name: "Oracle-ARM-Master"
 oracle_catcher_min_wait: 30
 oracle_catcher_max_wait: 60
 
-# === Ссылки на секреты из Vault (сами значения — в vault.yml) ===
+# === Vault secrets links (values are in vault.yml) ===
 oracle_user_ocid:     "{{ vault_oracle_user_ocid }}"
 oracle_tenancy_ocid:  "{{ vault_oracle_tenancy_ocid }}"
 oracle_fingerprint:   "{{ vault_oracle_fingerprint }}"

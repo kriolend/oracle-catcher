@@ -1,19 +1,19 @@
 ---
-- name: Первичная настройка и оптимизация серверов под K3s
+- name: System setup and optimization for K3s
   hosts: all
   become: true
   tasks:
-    # ─── НАСТРОЙКА SWAP ───
-    - name: Проверить, существует ли swap-файл
+    # ─── SWAP SETUP ───
+    - name: Check if swapfile exists
       stat:
         path: /swapfile
       register: swapfile_stat
 
-    - name: Создать swap-файл размером 2GB
+    - name: Create 2GB swapfile
       command: fallocate -l 2G /swapfile
       when: not swapfile_stat.stat.exists
 
-    - name: Установить права доступа на swap-файл (только для root)
+    - name: Set permissions for swapfile (root only)
       file:
         path: /swapfile
         owner: root
@@ -21,15 +21,15 @@
         mode: '0600'
       when: not swapfile_stat.stat.exists
 
-    - name: Форматировать swap-файл
+    - name: Format swapfile
       command: mkswap /swapfile
       when: not swapfile_stat.stat.exists
 
-    - name: Подключить swap-файл в текущей сессии
+    - name: Turn swap on in current session
       command: swapon /swapfile
       when: not swapfile_stat.stat.exists
 
-    - name: Добавить swap в /etc/fstab для автозапуска при загрузке
+    - name: Add swap to /etc/fstab for boot auto-start
       mount:
         name: none
         src: /swapfile
@@ -37,32 +37,32 @@
         opts: sw
         state: present
 
-    # ─── ОПТИМИЗАЦИЯ ПАМЯТИ И ЯДРА (SYSCTL) ───
-    # Использовать swap только при крайней необходимости — высокий swappiness
-    # постоянно сбрасывает активные процессы на диск, убивая производительность.
-    - name: Настроить swappiness (vm.swappiness = 10)
+    # ─── MEMORY AND KERNEL OPTIMIZATION (SYSCTL) ───
+    # Why vm.swappiness = 10: makes the system use SWAP only when needed.
+    # High swappiness causes slow disk activity and hurts performance.
+    - name: Set swappiness (vm.swappiness = 10)
       sysctl:
         name: vm.swappiness
         value: '10'
         state: present
         reload: yes
 
-    - name: Увеличить лимит inotify.max_user_watches для Kubernetes
+    - name: Increase inotify.max_user_watches limit for Kubernetes
       sysctl:
         name: fs.inotify.max_user_watches
         value: '524288'
         state: present
         reload: yes
 
-    - name: Увеличить лимит inotify.max_user_instances для Kubernetes
+    - name: Increase inotify.max_user_instances limit for Kubernetes
       sysctl:
         name: fs.inotify.max_user_instances
         value: '512'
         state: present
         reload: yes
 
-    # ─── ОТКЛЮЧЕНИЕ НЕИСПОЛЬЗУЕМЫХ СЛУЖБ (Сбережение RAM) ───
-    - name: Остановить и отключить snapd (освобождает RAM)
+    # ─── DISABLE UNUSED SERVICES (SAVE RAM) ───
+    - name: Stop and disable snapd (saves RAM)
       systemd:
         name: "{{ item }}"
         state: stopped
@@ -72,10 +72,10 @@
         - snapd.socket
         - snapd.seeded
       ignore_errors: yes
-      # ignore_errors: snapd может уже не быть на сервере — это не ошибка
+      # Why ignore_errors: snapd may not be on the server, this is okay.
 
-    # ─── ОБНОВЛЕНИЕ СИСТЕМЫ И ПАКЕТЫ ───
-    - name: Установить полезные системные утилиты
+    # ─── SYSTEM UPDATE AND PACKAGES ───
+    - name: Install useful system utilities
       apt:
         name:
           - curl
