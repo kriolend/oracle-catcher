@@ -40,3 +40,13 @@ tasks:
     cmds:
       - task: terraform-apply
       - task: ansible-ping
+
+  "k8s:fetch-kubeconfig":
+    desc: "Скачивание kubeconfig с мастер-ноды и настройка локального доступа"
+    cmds:
+      - ansible "136.112.15.165," -i "136.112.15.165," -u ubuntu -m fetch -a "src=/etc/rancher/k3s/k3s.yaml dest=./kubeconfig flat=yes" --become
+      - sed -i 's/127.0.0.1/136.112.15.165/g' ./kubeconfig
+      - chmod 600 ./kubeconfig
+      - echo "Kubeconfig успешно сохранен в ./kubeconfig"
+      - echo "Для использования в текущей сессии терминала выполните:"
+      - echo "  export KUBECONFIG=\$PWD/kubeconfig"
