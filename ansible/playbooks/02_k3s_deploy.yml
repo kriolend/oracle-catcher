@@ -49,10 +49,11 @@
   become: true
   vars:
     # Why hostvars: shares variables from the master play to the worker play.
-    # k3s-master-viacheslav is the host name from inventory/hosts.yml.
-    # master moved to U8197250572 during migration
-    k3s_master_url: "https://{{ hostvars['k3s-worker-U8197250572']['master_ip'] }}:6443"
-    k3s_token: "{{ hostvars['k3s-worker-U8197250572']['k3s_node_token'] }}"
+    # Determine master dynamically from inventory group 'master'. This avoids
+    # hardcoding hostnames and works when the master host is reassigned.
+    master_host: "{{ groups['master'][0] }}"
+    k3s_master_url: "https://{{ hostvars[ master_host ]['master_ip'] }}:6443"
+    k3s_token: "{{ hostvars[ master_host ]['k3s_node_token'] }}"
   tasks:
     - name: Download and install K3s agent (worker + Multi-cloud optimized)
       shell: |
