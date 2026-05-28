@@ -7,18 +7,18 @@
   hosts: master
   become: true
   tasks:
-    - name: Download and install K3s server (Diet Mode)
+    - name: Download and install K3s server (Diet Mode + Multi-cloud optimized)
       shell: |
         curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server \
           --disable traefik \
           --disable metrics-server \
           --disable local-storage \
+          --disable-agent \
+          --node-external-ip={{ ansible_host }} \
+          --flannel-backend=wireguard-native \
           --write-kubeconfig-mode 644" sh -
-      # Why --disable: Traefik, metrics-server and local-storage use ~200MB RAM.
-      # This is critical on e2-micro (1GB). We can add them later via ArgoCD if needed.
-      args:
-        creates: /usr/local/bin/k3s
-      # Why 'creates': if k3s is already installed, skip this task.
+      # Why --node-external-ip: allows nodes in separate cloud VPCs to advertise public IP.
+      # Why --flannel-backend=wireguard-native: creates secure encrypted tunnels over public IPs.
 
     - name: Wait for K3s to start (up to 60 seconds)
       wait_for:
@@ -50,18 +50,18 @@
   vars:
     # Why hostvars: shares variables from the master play to the worker play.
     # k3s-master-viacheslav is the host name from inventory/hosts.yml.
-    k3s_master_url: "https://{{ hostvars['k3s-master-viacheslav']['master_ip'] }}:6443"
-    k3s_token: "{{ hostvars['k3s-master-viacheslav']['k3s_node_token'] }}"
+    # master moved to U8197250572 during migration
+    k3s_master_url: "https://{{ hostvars['k3s-worker-U8197250572']['master_ip'] }}:6443"
+    k3s_token: "{{ hostvars['k3s-worker-U8197250572']['k3s_node_token'] }}"
   tasks:
-    - name: Download and install K3s agent (worker)
+    - name: Download and install K3s agent (worker + Multi-cloud optimized)
       shell: |
         curl -sfL https://get.k3s.io | K3S_URL="{{ k3s_master_url }}" \
-          K3S_TOKEN="{{ k3s_token }}" sh -
+          K3S_TOKEN="{{ k3s_token }}" INSTALL_K3S_EXEC="agent \
+          --node-external-ip={{ ansible_host }}" sh -
       # Why K3S_URL and K3S_TOKEN: this is how agents connect.
       # K3S_URL points to the master node (port 6443 is K3s API).
       # K3S_TOKEN is the authentication token.
-      args:
-        creates: /usr/local/bin/k3s
 
 - name: Verify cluster
   hosts: master
