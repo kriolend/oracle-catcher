@@ -14,10 +14,19 @@
    * CI/CD пайплайны реализованы **и в GitHub Actions, и в GitLab CI**, чтобы продемонстрировать готовность к суровым Enterprise-реалиям (где GitLab Self-Hosted — абсолютный стандарт).
 4. **Zero-Budget Cloud**: Использование бесплатных ресурсов GCP (e2-micro) с жесткой оптимизацией памяти (SWAP) и автоматическим скалированием на Oracle ARM (когда будет пойман инстанс).
 
+## 🏗️ Terraform Modules
+
+Reusable modules under `terraform/modules/`:
+
+| Module | Purpose |
+|--------|---------|
+| `k3s_network` | VPC, subnet, firewall rules for K3s cluster |
+| `k3s_node`   | Compute instance with K3s server/agent setup |
+
 ## Этапы развития (Phases)
 ### Phase 1: Local Foundation & IaC
 * Git, Taskfile, Pre-commit hooks
-* Terraform для провижининга GCP e2-micro
+* Modular Terraform (`terraform/modules/`) для провижининга GCP e2-micro
 
 ### Phase 2: Configuration & Optimization
 * Ansible для базовой настройки (SWAP, security)

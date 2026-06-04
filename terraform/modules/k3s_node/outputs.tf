@@ -20,10 +20,10 @@ output "internal_ip" {
 
 output "network_name" {
   description = "VPC Network name"
-  value       = google_compute_network.k3s_network.name
+  value       = local.effective_network_name
 }
 
 output "subnet_name" {
   description = "Subnet name"
-  value       = google_compute_subnetwork.k3s_subnet.name
+  value       = local.effective_subnet_name
 }
