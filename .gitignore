@@ -27,4 +27,4 @@ secrets.yml
 .ai/
 
 # Kubernetes Secrets
-kubeconfig
+kubeconfig.kilo/

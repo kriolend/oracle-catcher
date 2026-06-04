@@ -40,7 +40,7 @@ resource "google_compute_firewall" "k3s_firewall_udp" {
 
 # 3. Виртуальные машины (Ноды кластера)
 resource "google_compute_instance" "k3s_nodes" {
-  count        = 1 # Создаем сразу 2 сервера (один будет мастером, второй - воркером)
+  count        = 1 # Создаем 1 сервер (мастер)
   name         = "k3s-vyacheslav" # Имя сервера
   machine_type = "e2-micro" # Тот самый бесплатный тип сервера
   
