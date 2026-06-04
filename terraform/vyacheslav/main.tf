@@ -1,9 +1,9 @@
 module "k3s_network" {
   source   = "../modules/k3s_network"
 
-  network_name = "k3s-network"
-  subnet_name  = "k3s-subnet"
-  subnet_cidr  = "10.128.0.0/20"
+  use_existing_network    = true
+  existing_network_name   = "k3s-network"
+  existing_subnet_name    = "k3s-subnet"
 }
 
 module "k3s_node" {

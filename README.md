@@ -27,6 +27,7 @@ Reusable modules under `terraform/modules/`:
 ### Phase 1: Local Foundation & IaC
 * Git, Taskfile, Pre-commit hooks
 * Modular Terraform (`terraform/modules/`) для провижининга GCP e2-micro
+* Safe mode: `terraform/vyacheslav` использует существующую сеть (пропускает создание, если сеть уже есть)
 
 ### Phase 2: Configuration & Optimization
 * Ansible для базовой настройки (SWAP, security)
