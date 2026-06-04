@@ -1,0 +1,153 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: argocd
+
+resources:
+  - namespace.yaml
+  - https://raw.githubusercontent.com/argoproj/argo-cd/v2.11.0/manifests/install.yaml
+
+patches:
+  # 1. Отключаем dex-server, масштабируя его в 0 реплик (экономия RAM)
+  - target:
+      kind: Deployment
+      name: argocd-dex-server
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 0
+  # 2. Масштабируем notifications-controller в 0 реплик (он не нужен в лабе, экономия RAM)
+  - target:
+      kind: Deployment
+      name: argocd-notifications-controller
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 0
+  # 3. Ограничиваем лимиты ресурсов для argocd-application-controller
+  - target:
+      kind: StatefulSet
+      name: argocd-application-controller
+    patch: |-
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: argocd-application-controller
+      spec:
+        template:
+          spec:
+            containers:
+              - name: argocd-application-controller
+                resources:
+                  limits:
+                    cpu: 500m
+                    memory: 512Mi
+                  requests:
+                    cpu: 100m
+                    memory: 256Mi
+  # 4. Ограничиваем лимиты ресурсов для argocd-repo-server
+  - target:
+      kind: Deployment
+      name: argocd-repo-server
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: argocd-repo-server
+      spec:
+        template:
+          spec:
+            containers:
+              - name: argocd-repo-server
+                resources:
+                  limits:
+                    cpu: 500m
+                    memory: 256Mi
+                  requests:
+                    cpu: 50m
+                    memory: 128Mi
+  # 5. Ограничиваем лимиты ресурсов для argocd-server
+  - target:
+      kind: Deployment
+      name: argocd-server
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: argocd-server
+      spec:
+        template:
+          spec:
+            containers:
+              - name: argocd-server
+                resources:
+                  limits:
+                    cpu: 500m
+                    memory: 256Mi
+                  requests:
+                    cpu: 50m
+                    memory: 128Mi
+  # 6. Ограничиваем лимиты ресурсов для встроенного redis
+  - target:
+      kind: Deployment
+      name: argocd-redis
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: argocd-redis
+      spec:
+        template:
+          spec:
+            containers:
+              - name: redis
+                resources:
+                  limits:
+                    cpu: 200m
+                    memory: 128Mi
+                  requests:
+                    cpu: 10m
+                    memory: 64Mi
+
+  # 7. Ограничиваем лимиты ресурсов для argocd-applicationset-controller
+  - target:
+      kind: Deployment
+      name: argocd-applicationset-controller
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: argocd-applicationset-controller
+      spec:
+        template:
+          spec:
+            containers:
+              - name: argocd-applicationset-controller
+                resources:
+                  limits:
+                    cpu: 250m
+                    memory: 256Mi
+                  requests:
+                    cpu: 50m
+                    memory: 128Mi
+  - target:
+      kind: Service
+      name: argocd-server
+    patch: |-
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: argocd-server
+      spec:
+        type: NodePort
+        ports:
+          - name: http
+            port: 80
+            protocol: TCP
+            targetPort: 8080
+            nodePort: 30080
+          - name: https
+            port: 443
+            protocol: TCP
+            targetPort: 8080
+            nodePort: 30443

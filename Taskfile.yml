@@ -1,6 +1,29 @@
 version: '3'
 
+env:
+  KUBECONFIG: "{{.TASKFILE_DIR}}/kubeconfig"
+
 tasks:
+  # -----------------------------------------------------------------
+  # 1. Открыть порты для Kubernetes API и kubelet через gcloud
+  # -----------------------------------------------------------------
+  "gcp:create-firewall-rules":
+    desc: "Создать firewall‑правила для портов 6443 (API) и 10250 (kubelet)"
+    cmds:
+      # Сеть k3s-network — создана Terraform в main.tf, именно к ней подключены ноды
+      - gcloud compute firewall-rules create allow-k8s-api --allow tcp:6443 --direction INGRESS --priority 1000 --network k3s-network --source-ranges 0.0.0.0/0 || true
+      - gcloud compute firewall-rules create allow-k8s-kubelet --allow tcp:10250 --direction INGRESS --priority 1000 --network k3s-network --source-ranges 0.0.0.0/0 || true
+
+  # -----------------------------------------------------------------
+  # 2. Проверить статус ArgoCD после развертывания
+  # -----------------------------------------------------------------
+  "k8s:check-argocd":
+    desc: "Показать состояние pod‑ов ArgoCD и собрать логи приложения"
+    cmds:
+      - kubectl get pods -n argocd -o wide
+      - kubectl logs -n argocd -l app.kubernetes.io/name=argocd-applicationset-controller -c argocd-applicationset-controller --tail=200
+      - kubectl describe pod -n argocd -l app.kubernetes.io/name=argocd-applicationset-controller
+
   default:
     cmds:
       - task -l
@@ -33,7 +56,7 @@ tasks:
     desc: "Проверка доступности серверов через Ansible"
     dir: ansible
     cmds:
-      - ansible all -m ping -i inventory.yml
+      - ansible all -m ping -i inventory/hosts.yml
 
   deploy:
     desc: "Полный цикл деплоя (Terraform + Ansible)"
@@ -46,7 +69,21 @@ tasks:
     cmds:
       - ansible "136.112.15.165," -i "136.112.15.165," -u ubuntu -m fetch -a "src=/etc/rancher/k3s/k3s.yaml dest=./kubeconfig flat=yes" --become
       - sed -i 's/127.0.0.1/136.112.15.165/g' ./kubeconfig
+      - 'sed -i "/certificate-authority-data:/c\    insecure-skip-tls-verify: true" ./kubeconfig'
       - chmod 600 ./kubeconfig
       - echo "Kubeconfig успешно сохранен в ./kubeconfig"
       - echo "Для использования в текущей сессии терминала выполните:"
       - echo "  export KUBECONFIG=\$PWD/kubeconfig"
+
+  "k8s:install-argocd":
+    desc: "Установка оптимизированного ArgoCD в кластер"
+    cmds:
+      - kubectl apply --insecure-skip-tls-verify -k k8s/argocd
+      - echo "Ожидаем готовности подов ArgoCD..."
+      - kubectl get pods -n argocd -w
+
+  "k8s:get-argocd-pass":
+    desc: "Получить пароль администратора ArgoCD"
+    cmds:
+      - kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+      - echo ""

@@ -93,7 +93,7 @@ mkdir -p ~/Projects/devops-enterprise-lab/ansible/playbooks
 
 # --- Текущие IP-адреса серверов ---
 # Master:    k3s-master-viacheslav   — 136.112.15.165 (vyacheslav.rumyancev@gmail.com)
-# Worker 1:  k3s-worker-kriolend     — 35.223.14.161  (kriolend@gmail.com)
+# Worker 1:  k3s-worker-kriolend     — 34.72.3.83  (kriolend@gmail.com)
 # Worker 2:  k3s-worker-U8197250572  — 104.154.162.81 (u8197250572@gmail.com)
 
 # --- Решение проблем доступа к GCS стейту ---

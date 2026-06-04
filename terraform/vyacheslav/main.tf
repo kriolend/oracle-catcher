@@ -12,10 +12,29 @@ resource "google_compute_firewall" "k3s_firewall" {
   # Разрешаем входящий трафик
   allow {
     protocol = "tcp"
-    ports    = ["22", "6443"] # 22 для SSH (чтобы зайти на сервер), 6443 для K3s API (управление кубернетесом)
+    # 22    — SSH
+    # 6443  — K3s API (kubectl, ArgoCD агент)
+    # 10250 — kubelet API (нужен для kubectl logs/exec; без него 502 Bad Gateway)
+    # 30080 — ArgoCD UI HTTP (NodePort)
+    # 30443 — ArgoCD UI HTTPS (NodePort)
+    ports    = ["22", "6443", "10250", "30080", "30443"]
   }
 
   # Разрешаем подключаться с любых IP адресов интернета
+  source_ranges = ["0.0.0.0/0"]
+}
+
+# 2.2 Правила Firewall UDP (для Wireguard)
+resource "google_compute_firewall" "k3s_firewall_udp" {
+  name    = "k3s-firewall-udp"
+  network = google_compute_network.k3s_network.name
+
+  allow {
+    protocol = "udp"
+    # 51820, 51821 — Flannel Wireguard (для связи нод из разных проектов/сетей GCP)
+    ports    = ["51820", "51821"]
+  }
+
   source_ranges = ["0.0.0.0/0"]
 }
 

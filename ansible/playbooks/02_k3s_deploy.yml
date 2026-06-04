@@ -7,7 +7,7 @@
   hosts: master
   become: true
   tasks:
-    - name: Download and install K3s server (Diet Mode + Multi-cloud optimized)
+    - name: Download and install K3s server (Diet Mode + Memory Optimized)
       shell: |
         curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server \
           --disable traefik \
@@ -16,9 +16,12 @@
           --disable-agent \
           --node-external-ip={{ ansible_host }} \
           --flannel-backend=wireguard-native \
-          --write-kubeconfig-mode 644" sh -
+          --write-kubeconfig-mode 644 \
+          --etcd-arg auto-compaction-mode=periodic \
+          --etcd-arg auto-compaction-retention=1h" sh -
       # Why --node-external-ip: allows nodes in separate cloud VPCs to advertise public IP.
       # Why --flannel-backend=wireguard-native: creates secure encrypted tunnels over public IPs.
+      # Why --etcd-arg auto-compaction-*: compress etcd database every 1h to reduce RAM usage (critical for e2-micro).
 
     - name: Wait for K3s to start (up to 60 seconds)
       wait_for:
