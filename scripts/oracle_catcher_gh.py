@@ -38,8 +38,8 @@ availability_domains = [ad.strip() for ad in ad_string.split(",") if ad.strip()]
 
 IMAGE_ID    = os.environ.get("ORACLE_IMAGE_ID", "").strip()
 SHAPE       = os.environ.get("ORACLE_SHAPE", "VM.Standard.A1.Flex").strip()
-OCPUS       = int(os.environ.get("ORACLE_OCPUS", "4").strip())
-MEMORY_GB   = int(os.environ.get("ORACLE_MEMORY_GB", "24").strip())
+OCPUS       = int(os.environ.get("ORACLE_OCPUS", "2").strip())
+MEMORY_GB   = int(os.environ.get("ORACLE_MEMORY_GB", "12").strip())
 SUBNET_OCID = os.environ.get("ORACLE_SUBNET_OCID", "").strip()
 SSH_KEY     = os.environ.get("ORACLE_SSH_PUBLIC_KEY", "").strip()
 DISPLAY_NAME = os.environ.get("ORACLE_INSTANCE_DISPLAY_NAME", "oracle-catcher-instance").strip()
@@ -110,11 +110,10 @@ def get_current_capacity():
 
 
 def get_cascade_options(used_ocpu):
-    # Oracle Always Free новый лимит: максимум 2 OCPU / 12 GB
     available = 2 - used_ocpu
     if available >= 2:
-        return [(2, 12), (1, 6)]
-    elif available == 1:
+        return [(2, 12)]
+    elif available >= 1:
         return [(1, 6)]
     else:
         return []
@@ -182,10 +181,10 @@ while True:
     options = get_cascade_options(used_ocpu)
 
     if not options:
-        log.info(f"🎉 Достигнут целевой лимит OCPU. Использовано: {used_ocpu}/4.")
+        log.info(f"🎉 Достигнут целевой лимит OCPU. Использовано: {used_ocpu}/2.")
         sys.exit(0)
 
-    log.info(f"--- Попытка #{attempt} | Занято OCPU: {used_ocpu}/4 ---")
+    log.info(f"--- Попытка #{attempt} | Занято OCPU: {used_ocpu}/2 ---")
 
     ads = availability_domains[:]
     random.shuffle(ads)

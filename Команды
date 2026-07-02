@@ -37,61 +37,37 @@ devops-enterprise-lab/
 # ============================================
 # ⚠️  ВАЖНО: Выполняй команды строго по порядку. Не пропускай шаги!
 
-# ── ЭТАП 1: Создание первой ноды (Terraform vyacheslav) ──
-# Что делает: Подключается к существующей облачной сети и создаёт первую виртуальную машину.
-# ВАЖНО: Сеть уже создана (safe mode) — terraform apply пропустит создание сети, если она существует.
-# Зачем: Первая нода готова к использованию, сеть переиспользуется для всех последующих нод.
+# ── ЭТАП 1: Настройка Service Account (Единожды) ──
+# Что делает: Генерирует JSON-ключи для автоматического деплоя без браузера.
 # Как выполнить:
+mkdir -p ~/Projects/devops-enterprise-lab/.secrets
+
+# Для аккаунта vyacheslav:
+gcloud config set project <NEW_PROJECT_ID_VYACHESLAV>
+gcloud auth login
+gcloud iam service-accounts create terraform-sa --display-name="Terraform SA"
+gcloud projects add-iam-policy-binding <NEW_PROJECT_ID_VYACHESLAV> --member="serviceAccount:terraform-sa@<NEW_PROJECT_ID_VYACHESLAV>.iam.gserviceaccount.com" --role="roles/editor"
+gcloud iam service-accounts keys create ~/Projects/devops-enterprise-lab/.secrets/vyacheslav-key.json --iam-account=terraform-sa@<NEW_PROJECT_ID_VYACHESLAV>.iam.gserviceaccount.com
+
+# Повторить аналогично для kriolend и u8197250572 (заменив Project ID и имена ключей: kriolend-key.json, u819725-key.json).
+
+# ── ЭТАП 2: Развертывание ноды 1 (vyacheslav) ──
 cd ~/Projects/devops-enterprise-lab/terraform/vyacheslav
-gcloud auth application-default login          # Выбрать: vyacheslav.rumyancev@gmail.com
 gcloud storage buckets create gs://devops-lab-tfstate-vr-2026 --location=us-central1
 terraform init
 terraform apply
-# ✅ Проверка перед переходом: Должен появиться 1 работающий сервер с внешним IP.
-# Команда проверки:
-gcloud compute instances list --format="table(name, status, networkInterfaces[0].accessConfigs[0].natIP)"
 
-# ── ЭТАП 2: Добавление второй ноды (Terraform kriolend) ──
-# Что делает: Создаёт вторую ВМ и подключает её к уже существующей сети.
-# Зачем: Получаем второй узел для кластера Kubernetes.
-# Как выполнить:
-cd ~/Projects/devops-enterprise-lab/terraform
-cp -r vyacheslav kriolend
-cd kriolend
-rm -rf .terraform .terraform.lock.hcl
-gcloud config set project my-devops-project-20260317
-gcloud auth login                              # Выбрать: kriolend@gmail.com
-gcloud auth application-default login          # Выбрать: kriolend@gmail.com
-
-# Отредактируй 3 файла вручную:
-#   1. terraform.tfvars  → gcp_project_id = "my-devops-project-20260317"
-#   2. backend.tf        → bucket = "devops-lab-tfstate-kriolend-v2"
-#   3. main.tf           → name = "k3s-kriolend", используй существующую сеть
-
+# ── ЭТАП 3: Развертывание ноды 2 (kriolend) ──
+cd ~/Projects/devops-enterprise-lab/terraform/kriolend
 gcloud storage buckets create gs://devops-lab-tfstate-kriolend-v2 --location=us-central1
-terraform init -reconfigure
-terraform apply -reconfigure
-# ✅ Проверка перед переходом: Должны быть 2 работающих сервера (vyacheslav + kriolend).
+terraform init
+terraform apply
 
-# ── ЭТАП 3: Добавление третьей ноды (Terraform u8197250572) ──
-# Что делает: Аналогично этапу 2, но для третьего аккаунта.
-# Зачем: Получаем мастер-узел для Kubernetes.
-cp -r vyacheslav u8197250572
-cd u8197250572
-rm -rf .terraform .terraform.lock.hcl
-gcloud config set project packer-images-490319
-gcloud auth login                              # Выбрать: u8197250572@gmail.com
-gcloud auth application-default login          # Выбрать: u8197250572@gmail.com
-
-# Отредактируй те же 3 файла:
-#   1. terraform.tfvars  → gcp_project_id = "packer-images-490319"
-#   2. backend.tf        → bucket = "devops-lab-tfstate-u8197250572"
-#   3. main.tf           → name = "k3s-u8197250572", используй существующую сеть
-
+# ── ЭТАП 4: Развертывание ноды 3 (u8197250572) ──
+cd ~/Projects/devops-enterprise-lab/terraform/u8197250572
 gcloud storage buckets create gs://devops-lab-tfstate-u8197250572 --location=us-central1
-terraform init -reconfigure
-terraform apply -reconfigure
-# ✅ Проверка перед переходом: Должно быть 3 работающих сервера с разными IP.
+terraform init
+terraform apply
 
 # ── ЭТАП 4: Базовая настройка системы (Ansible 01_system_setup) ──
 # Что делает: Отключает swap, оптимизирует ядро Linux, удаляет лишние службы.

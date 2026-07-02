@@ -1,11 +1,3 @@
-module "k3s_network" {
-  source   = "../modules/k3s_network"
-
-  use_existing_network    = true
-  existing_network_name   = "k3s-network"
-  existing_subnet_name    = "k3s-subnet"
-}
-
 module "k3s_node" {
   source = "../modules/k3s_node"
 
@@ -13,9 +5,11 @@ module "k3s_node" {
   gcp_region     = var.gcp_region
   gcp_zone       = var.gcp_zone
 
-  use_existing_network  = true
-  existing_network_name = module.k3s_network.network_name
-  existing_subnet_name  = module.k3s_network.subnet_name
+  use_existing_network = false
+  network_name         = "k3s-network"
+  subnet_name          = "k3s-subnet"
+  subnet_cidr          = "10.128.0.0/20"
+  firewall_name        = "k3s-firewall"
 
   instance_name = "k3s-vyacheslav"
   node_role     = "oracle-catcher"

@@ -50,6 +50,7 @@ resource "google_compute_instance" "k3s_nodes" {
     initialize_params {
       image = var.image
       size  = var.disk_size
+      type  = "pd-standard"
     }
   }
 
@@ -59,6 +60,7 @@ resource "google_compute_instance" "k3s_nodes" {
     network_ip         = var.static_ip
     
     access_config {
+      network_tier = "STANDARD"  # Явно STANDARD — иначе GCP берёт Premium (платный) по умолчанию
     }
   }
 

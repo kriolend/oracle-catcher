@@ -1,5 +1,4 @@
-# Using existing network
-# Avoiding code duplication between projects
+# Each GCP project has its own isolated VPC — cross-project networks are impossible
 module "k3s_worker_2" {
   source = "../modules/k3s_node"
 
@@ -7,9 +6,12 @@ module "k3s_worker_2" {
   gcp_region     = var.gcp_region
   gcp_zone       = var.gcp_zone
 
-  use_existing_network  = true
-  existing_network_name = "k3s-network"
-  existing_subnet_name  = "k3s-subnet"
-  instance_name         = "k3s-u8197250572"
-  node_role             = "master"
+  use_existing_network = false       # Создаём СВОЮ VPC (другой аккаунт = другой проект)
+  network_name         = "k3s-network"
+  subnet_name          = "k3s-subnet"
+  subnet_cidr          = "10.128.0.0/20"
+  firewall_name        = "k3s-firewall"
+
+  instance_name = "k3s-u8197250572"
+  node_role     = "master"
 }

@@ -57,13 +57,11 @@ def get_current_capacity():
         return 0, 0
 
 def get_cascade_options(used_ocpu):
-    available = 4 - used_ocpu
-    if available >= 4:
-        return [(4, 24), (2, 12), (1, 6)]
-    elif available == 3:
-        return [(3, 18), (2, 12)]
-    elif available == 2:
+    available = 2 - used_ocpu
+    if available >= 2:
         return [(2, 12)]
+    elif available >= 1:
+        return [(1, 6)]
     else:
         return []
 
@@ -117,10 +115,10 @@ while True:
     options = get_cascade_options(used_ocpu)
     
     if not options:
-        log.info(f"🎉 Достигнут целевой лимит OCPU. Использовано: {used_ocpu}/4.")
+        log.info(f"🎉 Достигнут целевой лимит OCPU. Использовано: {used_ocpu}/2.")
         sys.exit(0)
 
-    log.info(f"--- Попытка #{attempt} | Занято OCPU: {used_ocpu}/4 ---")
+    log.info(f"--- Попытка #{attempt} | Занято OCPU: {used_ocpu}/2 ---")
     
     ads = availability_domains[:]
     random.shuffle(ads)

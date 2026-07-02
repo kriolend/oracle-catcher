@@ -9,8 +9,8 @@ oracle_availability_domains:
 
 oracle_image_id: "ocid1.image.oc1.eu-frankfurt-1.aaaaaaaapli4odzd45utz5wtjkqiu5xzzu5kkcwlgvljxuf6qbgytl26hxza"
 oracle_shape: "VM.Standard.A1.Flex"
-oracle_ocpus: 4
-oracle_memory_gb: 24
+oracle_ocpus: 2
+oracle_memory_gb: 12
 oracle_instance_display_name: "Oracle-ARM-Master"
 
 oracle_catcher_min_wait: 30
