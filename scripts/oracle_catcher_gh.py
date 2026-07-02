@@ -57,6 +57,17 @@ retry_strategy = oci.retry.DEFAULT_RETRY_STRATEGY
 compute_client = oci.core.ComputeClient(config, retry_strategy=retry_strategy)
 
 
+def log_config():
+    log.info("📋 Конфиг запуска:")
+    log.info(f"  Region      : {config['region']}")
+    log.info(f"  Shape       : {SHAPE}")
+    log.info(f"  OCPU/MEM    : {OCPUS} OCPU / {MEMORY_GB} GB")
+    log.info(f"  ADs         : {', '.join(availability_domains)}")
+    log.info(f"  Subnet      : {SUBNET_OCID}")
+    log.info(f"  Run duration: {RUN_DURATION} сек")
+    log.info(f"  Wait        : {MIN_WAIT}-{MAX_WAIT} сек")
+
+
 def send_email(subject: str, body: str):
     """Отправить email через Gmail SMTP."""
     if not EMAIL_FROM or not EMAIL_APP_PASSWORD:
@@ -167,6 +178,7 @@ def try_launch_instance(ad: str, ocpus: int, memory_gb: int):
 
 
 log.info("🚀 Oracle Catcher (GitHub Actions Edition) запущен.")
+log_config()
 attempt = 0
 start_time = time.time()
 
