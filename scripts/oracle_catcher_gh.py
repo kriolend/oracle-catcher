@@ -21,26 +21,26 @@ with open(key_path, "w") as f:
     f.write(API_KEY.replace("\\n", "\n"))
 
 config = {
-    "user": os.environ.get("ORACLE_USER_OCID"),
+    "user": os.environ.get("ORACLE_USER_OCID", "").strip(),
     "key_file": key_path,
-    "fingerprint": os.environ.get("ORACLE_FINGERPRINT"),
-    "tenancy": os.environ.get("ORACLE_TENANCY_OCID"),
-    "region": os.environ.get("ORACLE_REGION")
+    "fingerprint": os.environ.get("ORACLE_FINGERPRINT", "").strip(),
+    "tenancy": os.environ.get("ORACLE_TENANCY_OCID", "").strip(),
+    "region": os.environ.get("ORACLE_REGION", "").strip()
 }
 
 compartment_id = config["tenancy"]
 
 # Парсинг массивов/списков
-ad_string = os.environ.get("ORACLE_AVAILABILITY_DOMAINS", "")
+ad_string = os.environ.get("ORACLE_AVAILABILITY_DOMAINS", "").strip()
 availability_domains = [ad.strip() for ad in ad_string.split(",") if ad.strip()]
 
-IMAGE_ID    = os.environ.get("ORACLE_IMAGE_ID")
-SHAPE       = os.environ.get("ORACLE_SHAPE", "VM.Standard.A1.Flex")
-OCPUS       = int(os.environ.get("ORACLE_OCPUS", "4"))
-MEMORY_GB   = int(os.environ.get("ORACLE_MEMORY_GB", "24"))
-SUBNET_OCID = os.environ.get("ORACLE_SUBNET_OCID")
-SSH_KEY     = os.environ.get("ORACLE_SSH_PUBLIC_KEY")
-DISPLAY_NAME = os.environ.get("ORACLE_INSTANCE_DISPLAY_NAME", "oracle-catcher-instance")
+IMAGE_ID    = os.environ.get("ORACLE_IMAGE_ID", "").strip()
+SHAPE       = os.environ.get("ORACLE_SHAPE", "VM.Standard.A1.Flex").strip()
+OCPUS       = int(os.environ.get("ORACLE_OCPUS", "4").strip())
+MEMORY_GB   = int(os.environ.get("ORACLE_MEMORY_GB", "24").strip())
+SUBNET_OCID = os.environ.get("ORACLE_SUBNET_OCID", "").strip()
+SSH_KEY     = os.environ.get("ORACLE_SSH_PUBLIC_KEY", "").strip()
+DISPLAY_NAME = os.environ.get("ORACLE_INSTANCE_DISPLAY_NAME", "oracle-catcher-instance").strip()
 
 MIN_WAIT = int(os.environ.get("ORACLE_CATCHER_MIN_WAIT", "10"))
 MAX_WAIT = int(os.environ.get("ORACLE_CATCHER_MAX_WAIT", "30"))
