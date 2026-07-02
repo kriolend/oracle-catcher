@@ -70,10 +70,10 @@ def log_config():
 
 def send_email(subject: str, body: str):
     """Отправить email через Gmail SMTP."""
-    if not EMAIL_FROM or not EMAIL_APP_PASSWORD:
-        log.warning("Email не настроен — пропускаем отправку.")
-        return
     try:
+        if not EMAIL_FROM or not EMAIL_APP_PASSWORD:
+            log.warning("Email не настроен — пропускаем отправку.")
+            return
         msg = MIMEText(body, "plain", "utf-8")
         msg["Subject"] = subject
         msg["From"] = EMAIL_FROM
@@ -86,11 +86,12 @@ def send_email(subject: str, body: str):
         log.error(f"Ошибка отправки email: {e}")
 
 
-def get_instance_ip(instance_id: str) -> str:
+def wait_public_ip(instance_id: str) -> str:
     """Ждём пока инстанс запустится и получаем его публичный IP."""
     try:
         network_client = oci.core.VirtualNetworkClient(config)
-        for _ in range(30):  # Максимум 5 минут ожидания
+        log.info("⏳ Ждём публичный IP инстанса...")
+        for i in range(30):
             time.sleep(10)
             vnics = compute_client.list_vnic_attachments(
                 compartment_id=compartment_id,
@@ -100,6 +101,7 @@ def get_instance_ip(instance_id: str) -> str:
                 vnic = network_client.get_vnic(vnics[0].vnic_id).data
                 if vnic.public_ip:
                     return vnic.public_ip
+            log.info(f"  ждём IP... {i+1}/30")
     except Exception as e:
         log.error(f"Ошибка получения IP: {e}")
     return "IP не определён (проверь Oracle Console)"
@@ -182,58 +184,62 @@ log_config()
 attempt = 0
 start_time = time.time()
 
-while True:
-    elapsed = time.time() - start_time
-    if elapsed > RUN_DURATION:
-        log.info(f"⌛ Время работы ({RUN_DURATION} сек) вышло. Завершаем Job.")
-        sys.exit(0)
+try:
+    while True:
+        elapsed = time.time() - start_time
+        if elapsed > RUN_DURATION:
+            log.info(f"⌛ Время работы ({RUN_DURATION} сек) вышло. Завершаем Job.")
+            sys.exit(0)
 
-    attempt += 1
-    used_ocpu, used_mem = get_current_capacity()
-    options = get_cascade_options(used_ocpu)
+        attempt += 1
+        used_ocpu, used_mem = get_current_capacity()
+        options = get_cascade_options(used_ocpu)
 
-    if not options:
-        log.info(f"🎉 Достигнут целевой лимит OCPU. Использовано: {used_ocpu}/2.")
-        sys.exit(0)
+        if not options:
+            log.info(f"🎉 Достигнут целевой лимит OCPU. Использовано: {used_ocpu}/2.")
+            sys.exit(0)
 
-    log.info(f"--- Попытка #{attempt} | Занято OCPU: {used_ocpu}/2 ---")
+        log.info(f"--- Попытка #{attempt} | Занято OCPU: {used_ocpu}/2 ---")
 
-    ads = availability_domains[:]
-    random.shuffle(ads)
+        ads = availability_domains[:]
+        random.shuffle(ads)
 
-    instance_id = None
-    for ad in ads:
-        for (ocpu, mem) in options:
-            result = try_launch_instance(ad, ocpu, mem)
-            if result:
-                instance_id = result
+        instance_id = None
+        for ad in ads:
+            for (ocpu, mem) in options:
+                result = try_launch_instance(ad, ocpu, mem)
+                if result:
+                    instance_id = result
+                    break
+            if instance_id:
                 break
+
         if instance_id:
-            break
+            log.info("🎉 Инстанс создан! Ждём публичный IP...")
+            public_ip = wait_public_ip(instance_id)
+            log.info(f"🌐 Публичный IP: {public_ip}")
+            log.info(f"🔑 SSH команда: ssh ubuntu@{public_ip}")
 
-    if instance_id:
-        log.info("🎉 Инстанс создан! Ждём публичный IP...")
-        public_ip = get_instance_ip(instance_id)
-        log.info(f"🌐 Публичный IP: {public_ip}")
-        log.info(f"🔑 SSH команда: ssh ubuntu@{public_ip}")
-
-        subject = "✅ Oracle ARM сервер пойман!"
-        body = f"""Oracle Catcher успешно поймал бесплатный ARM инстанс!
+            subject = "✅ Oracle ARM сервер пойман!"
+            body = f"""Oracle Catcher успешно поймал бесплатный ARM инстанс!
 
 Данные для подключения:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Instance ID : {instance_id}
 Публичный IP: {public_ip}
 SSH команда : ssh ubuntu@{public_ip}
 Region      : {config['region']}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Сервер: {DISPLAY_NAME} ({OCPUS} OCPU, {MEMORY_GB} GB RAM)
 """
-        send_email(subject, body)
-        sys.exit(0)
+            send_email(subject, body)
+            sys.exit(0)
 
-    # Jitter чтобы скрыть паттерн бота
-    wait = random.randint(MIN_WAIT, MAX_WAIT) + random.randint(1, 15)
-    log.info(f"⏳ Следующая попытка через {wait} сек...")
-    time.sleep(wait)
+        # Jitter чтобы скрыть паттерн бота
+        wait = random.randint(MIN_WAIT, MAX_WAIT) + random.randint(1, 15)
+        log.info(f"⏳ Следующая попытка через {wait} сек...")
+        time.sleep(wait)
+except (KeyboardInterrupt, SystemExit):
+    log.warning("⚠️ Скрипт прерван пользователем или окружением.")
+

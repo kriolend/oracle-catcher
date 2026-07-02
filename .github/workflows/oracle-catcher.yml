@@ -11,9 +11,8 @@ jobs:
   catch:
     runs-on: ubuntu-latest
     
-    # Жесткий таймаут, чтобы не сжигать лимиты, если скрипт зависнет
-    # Должен превышать ORACLE_CATCHER_RUN_DURATION + максимальную паузу между попытками
-    timeout-minutes: 6
+    # Таймаут job'ы. Должен превышать ORACLE_CATCHER_RUN_DURATION + максимальную паузу между попытками.
+    timeout-minutes: 10
 
     steps:
     - name: Checkout repository
