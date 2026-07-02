@@ -1,0 +1,50 @@
+name: Oracle Catcher
+
+on:
+  schedule:
+    # Запускать каждые 5 минут
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+    # Разрешает ручной запуск из интерфейса GitHub
+
+jobs:
+  catch:
+    runs-on: ubuntu-latest
+    
+    # Жесткий таймаут в 5 минут, чтобы не сжигать лимиты, если скрипт зависнет
+    timeout-minutes: 5
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+        cache: 'pip'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install oci
+
+    - name: Run Oracle Catcher
+      env:
+        ORACLE_USER_OCID: ${{ secrets.ORACLE_USER_OCID }}
+        ORACLE_API_KEY: ${{ secrets.ORACLE_API_KEY }}
+        ORACLE_FINGERPRINT: ${{ secrets.ORACLE_FINGERPRINT }}
+        ORACLE_TENANCY_OCID: ${{ secrets.ORACLE_TENANCY_OCID }}
+        ORACLE_REGION: ${{ secrets.ORACLE_REGION }}
+        ORACLE_AVAILABILITY_DOMAINS: ${{ secrets.ORACLE_AVAILABILITY_DOMAINS }}
+        ORACLE_IMAGE_ID: ${{ secrets.ORACLE_IMAGE_ID }}
+        ORACLE_SHAPE: ${{ secrets.ORACLE_SHAPE }}
+        ORACLE_OCPUS: ${{ secrets.ORACLE_OCPUS }}
+        ORACLE_MEMORY_GB: ${{ secrets.ORACLE_MEMORY_GB }}
+        ORACLE_SUBNET_OCID: ${{ secrets.ORACLE_SUBNET_OCID }}
+        ORACLE_SSH_PUBLIC_KEY: ${{ secrets.ORACLE_SSH_PUBLIC_KEY }}
+        ORACLE_INSTANCE_DISPLAY_NAME: ${{ secrets.ORACLE_INSTANCE_DISPLAY_NAME }}
+        ORACLE_CATCHER_MIN_WAIT: "10"
+        ORACLE_CATCHER_MAX_WAIT: "30"
+        ORACLE_CATCHER_RUN_DURATION: "240"
+      run: python scripts/oracle_catcher_gh.py
