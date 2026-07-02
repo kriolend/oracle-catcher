@@ -240,6 +240,6 @@ Region      : {config['region']}
         wait = random.randint(MIN_WAIT, MAX_WAIT) + random.randint(1, 15)
         log.info(f"⏳ Следующая попытка через {wait} сек...")
         time.sleep(wait)
-except (KeyboardInterrupt, SystemExit):
+except KeyboardInterrupt:
     log.warning("⚠️ Скрипт прерван пользователем или окружением.")
 
