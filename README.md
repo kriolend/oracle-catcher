@@ -27,7 +27,7 @@ Reusable modules under `terraform/modules/`:
 ### Phase 1: Local Foundation & IaC
 * Git, Taskfile, Pre-commit hooks
 * Modular Terraform (`terraform/modules/`) для провижининга GCP e2-micro
-* Safe mode: `terraform/vyacheslav` использует существующую сеть (пропускает создание, если сеть уже есть)
+* Zero-touch auth: Использование Service Account JSON ключей (`.secrets/`) вместо ручного `gcloud auth` в браузере (Enterprise best practice).
 
 ### Phase 2: Configuration & Optimization
 * Ansible для базовой настройки (SWAP, security)
@@ -41,3 +41,4 @@ Reusable modules under `terraform/modules/`:
 
 ### Phase 5: Enterprise Stack
 * ArgoCD (Cloud), Prometheus Agent, Loki + Promtail
+# oracle-catcher
