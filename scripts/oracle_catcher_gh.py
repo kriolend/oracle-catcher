@@ -4,6 +4,8 @@ import time
 import random
 import logging
 import sys
+import smtplib
+from email.mime.text import MIMEText
 
 # === Логирование ===
 logging.basicConfig(
@@ -44,13 +46,53 @@ DISPLAY_NAME = os.environ.get("ORACLE_INSTANCE_DISPLAY_NAME", "oracle-catcher-in
 
 MIN_WAIT = int(os.environ.get("ORACLE_CATCHER_MIN_WAIT", "10"))
 MAX_WAIT = int(os.environ.get("ORACLE_CATCHER_MAX_WAIT", "30"))
-
-# Ограничение времени работы скрипта (по умолчанию 4 минуты = 240 сек),
-# чтобы GitHub Actions job корректно завершался.
 RUN_DURATION = int(os.environ.get("ORACLE_CATCHER_RUN_DURATION", "240"))
+
+# Email настройки
+EMAIL_FROM = os.environ.get("EMAIL_FROM", "").strip()
+EMAIL_TO = os.environ.get("EMAIL_TO", "").strip()
+EMAIL_APP_PASSWORD = os.environ.get("EMAIL_APP_PASSWORD", "").strip()
 
 retry_strategy = oci.retry.DEFAULT_RETRY_STRATEGY
 compute_client = oci.core.ComputeClient(config, retry_strategy=retry_strategy)
+
+
+def send_email(subject: str, body: str):
+    """Отправить email через Gmail SMTP."""
+    if not EMAIL_FROM or not EMAIL_APP_PASSWORD:
+        log.warning("Email не настроен — пропускаем отправку.")
+        return
+    try:
+        msg = MIMEText(body, "plain", "utf-8")
+        msg["Subject"] = subject
+        msg["From"] = EMAIL_FROM
+        msg["To"] = EMAIL_TO
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+            smtp.login(EMAIL_FROM, EMAIL_APP_PASSWORD)
+            smtp.sendmail(EMAIL_FROM, EMAIL_TO, msg.as_string())
+        log.info(f"📧 Email отправлен на {EMAIL_TO}")
+    except Exception as e:
+        log.error(f"Ошибка отправки email: {e}")
+
+
+def get_instance_ip(instance_id: str) -> str:
+    """Ждём пока инстанс запустится и получаем его публичный IP."""
+    try:
+        network_client = oci.core.VirtualNetworkClient(config)
+        for _ in range(30):  # Максимум 5 минут ожидания
+            time.sleep(10)
+            vnics = compute_client.list_vnic_attachments(
+                compartment_id=compartment_id,
+                instance_id=instance_id
+            ).data
+            if vnics:
+                vnic = network_client.get_vnic(vnics[0].vnic_id).data
+                if vnic.public_ip:
+                    return vnic.public_ip
+    except Exception as e:
+        log.error(f"Ошибка получения IP: {e}")
+    return "IP не определён (проверь Oracle Console)"
+
 
 def get_current_capacity():
     try:
@@ -66,6 +108,7 @@ def get_current_capacity():
         log.error(f"Ошибка получения списка инстансов: {e}")
         return 0, 0
 
+
 def get_cascade_options(used_ocpu):
     available = 4 - used_ocpu
     if available >= 4:
@@ -77,7 +120,10 @@ def get_cascade_options(used_ocpu):
     else:
         return []
 
-def try_launch_instance(ad: str, ocpus: int, memory_gb: int) -> bool:
+
+def try_launch_instance(ad: str, ocpus: int, memory_gb: int):
+    """Возвращает instance_id при успехе или None при неудаче.
+       Возвращает 'LIMIT_EXCEEDED' если превышен лимит аккаунта."""
     display_name = f"{DISPLAY_NAME}-{ocpus}C-{memory_gb}G"
     log.info(f"Пробуем AD: {ad} | Конфиг: {ocpus} OCPU, {memory_gb} GB RAM")
     try:
@@ -104,7 +150,7 @@ def try_launch_instance(ad: str, ocpus: int, memory_gb: int) -> bool:
         )
         response = compute_client.launch_instance(launch_details)
         log.info(f"✅ УСПЕХ! Инстанс {display_name} создаётся: {response.data.id}")
-        return True
+        return response.data.id
 
     except oci.exceptions.ServiceError as e:
         if e.status == 500 and "Out of host capacity" in str(e.message):
@@ -112,11 +158,15 @@ def try_launch_instance(ad: str, ocpus: int, memory_gb: int) -> bool:
         elif e.status == 429:
             log.warning("🛑 Rate limit (429)! Спим 1 минуту...")
             time.sleep(60)
+        elif e.status == 400 and "service limits were exceeded" in str(e.message):
+            log.error(f"🚫 Лимит аккаунта превышен! Нужно запросить увеличение лимитов в Oracle Console.")
+            return "LIMIT_EXCEEDED"
         elif e.status == 400:
             log.error(f"⚠️ Ошибка (400): {e.message}")
         else:
             log.error(f"⚠️ Ошибка ({e.status}): {e.message}")
-    return False
+    return None
+
 
 log.info("🚀 Oracle Catcher (GitHub Actions Edition) запущен.")
 attempt = 0
@@ -125,36 +175,59 @@ start_time = time.time()
 while True:
     elapsed = time.time() - start_time
     if elapsed > RUN_DURATION:
-        log.info(f"⌛ Время работы ({RUN_DURATION} сек) вышло. Завершаем работу, чтобы GitHub Actions запустил новый Job.")
+        log.info(f"⌛ Время работы ({RUN_DURATION} сек) вышло. Завершаем Job.")
         sys.exit(0)
 
     attempt += 1
     used_ocpu, used_mem = get_current_capacity()
     options = get_cascade_options(used_ocpu)
-    
+
     if not options:
         log.info(f"🎉 Достигнут целевой лимит OCPU. Использовано: {used_ocpu}/4.")
         sys.exit(0)
 
     log.info(f"--- Попытка #{attempt} | Занято OCPU: {used_ocpu}/4 ---")
-    
+
     ads = availability_domains[:]
     random.shuffle(ads)
-    
-    caught = False
+
+    instance_id = None
     for ad in ads:
         for (ocpu, mem) in options:
-            if try_launch_instance(ad, ocpu, mem):
-                caught = True
+            result = try_launch_instance(ad, ocpu, mem)
+            if result == "LIMIT_EXCEEDED":
+                log.error("🚫 Аккаунт Oracle не имеет квоты на ARM. Останавливаем ловца.")
+                log.error("Зайди в Oracle Console → Limits, Quotas and Usage → запроси увеличение standard-a1-core-count.")
+                sys.exit(1)
+            if result:
+                instance_id = result
                 break
-        if caught:
+        if instance_id:
             break
-            
-    if caught:
-        log.info("🎉 Пойман инстанс! Завершаем текущий Job, чтобы сохранить минуты.")
+
+    if instance_id:
+        log.info("🎉 Инстанс создан! Ждём публичный IP...")
+        public_ip = get_instance_ip(instance_id)
+        log.info(f"🌐 Публичный IP: {public_ip}")
+        log.info(f"🔑 SSH команда: ssh ubuntu@{public_ip}")
+
+        subject = "✅ Oracle ARM сервер пойман!"
+        body = f"""Oracle Catcher успешно поймал бесплатный ARM инстанс!
+
+Данные для подключения:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Instance ID : {instance_id}
+Публичный IP: {public_ip}
+SSH команда : ssh ubuntu@{public_ip}
+Region      : {config['region']}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Сервер: {DISPLAY_NAME} ({OCPUS} OCPU, {MEMORY_GB} GB RAM)
+"""
+        send_email(subject, body)
         sys.exit(0)
 
-    # Jitter (дрожание) чтобы скрыть паттерн бота
+    # Jitter чтобы скрыть паттерн бота
     wait = random.randint(MIN_WAIT, MAX_WAIT) + random.randint(1, 15)
     log.info(f"⏳ Следующая попытка через {wait} сек...")
     time.sleep(wait)
