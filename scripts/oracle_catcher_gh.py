@@ -110,13 +110,12 @@ def get_current_capacity():
 
 
 def get_cascade_options(used_ocpu):
-    available = 4 - used_ocpu
-    if available >= 4:
-        return [(4, 24), (2, 12), (1, 6)]
-    elif available == 3:
-        return [(3, 18), (2, 12)]
-    elif available == 2:
-        return [(2, 12)]
+    # Oracle Always Free новый лимит: максимум 2 OCPU / 12 GB
+    available = 2 - used_ocpu
+    if available >= 2:
+        return [(2, 12), (1, 6)]
+    elif available == 1:
+        return [(1, 6)]
     else:
         return []
 
@@ -159,8 +158,8 @@ def try_launch_instance(ad: str, ocpus: int, memory_gb: int):
             log.warning("🛑 Rate limit (429)! Спим 1 минуту...")
             time.sleep(60)
         elif e.status == 400 and "service limits were exceeded" in str(e.message):
-            log.error(f"🚫 Лимит аккаунта превышен! Нужно запросить увеличение лимитов в Oracle Console.")
-            return "LIMIT_EXCEEDED"
+            log.warning(f"⚠️ Лимит для {ocpus} OCPU превышен, пробуем меньший конфиг...")
+            return None  # Продолжаем каскад к меньшему конфигу
         elif e.status == 400:
             log.error(f"⚠️ Ошибка (400): {e.message}")
         else:
@@ -195,10 +194,6 @@ while True:
     for ad in ads:
         for (ocpu, mem) in options:
             result = try_launch_instance(ad, ocpu, mem)
-            if result == "LIMIT_EXCEEDED":
-                log.error("🚫 Аккаунт Oracle не имеет квоты на ARM. Останавливаем ловца.")
-                log.error("Зайди в Oracle Console → Limits, Quotas and Usage → запроси увеличение standard-a1-core-count.")
-                sys.exit(1)
             if result:
                 instance_id = result
                 break
